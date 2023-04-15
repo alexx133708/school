@@ -22,7 +22,6 @@ basic_formater = logging.Formatter('%(asctime)s : [%(levelname)s] : %(message)s'
 FH.setFormatter(basic_formater)
 log.addHandler(FH)
 
-
 log.info('start program---------------------------------------------------------------------------')
 
 def generate_students():
