@@ -1,6 +1,7 @@
 import csv
 import random
 import datetime
+import tkinter
 import uuid
 import pandas as pd
 from sqlalchemy import create_engine
@@ -10,10 +11,12 @@ import pymysql
 import json
 from tkinter import *
 from tkinter.ttk import Combobox
+from subj_reg import subj_reg
 
 res_path = 'E:\\bigdata\\school\\csvfiles\\'
 orig_path = 'E:\\bigdata\\school\\csvfiles_orig\\'
 engine = create_engine(url=f"mysql+pymysql://alex3@192.168.1.75/school", echo=False)
+subj_cfg = 'C:\\Users\\alex\\PycharmProjects\\school\\subj_cfg.csv'
 connection = engine.raw_connection()
 
 logfile = f'{res_path}process.log'
@@ -26,17 +29,21 @@ log.addHandler(FH)
 
 log.info('start program---------------------------------------------------------------------------')
 
-
+# def vvod(var_list):
+# global menu_results
+# list_of_cb_values = []
+# for i in range(6):
+#     if var_list[i].get() == 1:
+#         list_of_cb_values.append(i + 6)
+# menu_results = {'class_nums': list_of_cb_values, 'rates_in_day': ratecombo.get()}
+# # menu_results = {'daterange': datescombo.get(), 'class': classcombo.get(), 'subj': subjcombo.get(), 'class_nums': list_of_cb_values, 'rates_in_day': ratecombo.get()}
+# window.destroy()
 def vvod():
     global menu_results
     list_of_cb_values = []
     for i in range(6):
-        if list_cb[i].get() == 1:
-            list_of_cb_values.append(i+6)
-    menu_results = {'class_nums': list_of_cb_values, 'rates_in_day': ratecombo.get()}
-    # menu_results = {'daterange': datescombo.get(), 'class': classcombo.get(), 'subj': subjcombo.get(), 'class_nums': list_of_cb_values, 'rates_in_day': ratecombo.get()}
-    window.destroy()
-
+        list_of_cb_values.append(i+6)
+    menu_results = {'class_nums': list_of_cb_values}
 
 def generate_students(menu_results):
     log.info('generating students')
@@ -86,7 +93,7 @@ def generate_students(menu_results):
     return result_list, class_list, class_num_list, class_letter_list
 
 
-def generate_teachers():
+def generate_teachers(subj_list):
     log.info('generating teachers')
     mname_list = []
     fname_list = []
@@ -106,7 +113,6 @@ def generate_teachers():
         for row in surnames.readlines():
             msurname_list.append(row.split(' ')[1])
     result_list = []
-    subj_list = ['русский язык', 'литература', 'математика', 'иностранный язык', 'история']
     print('generating teachers')
     for sub in tqdm(subj_list):
         is_male = random.randint(0, 1)
@@ -114,7 +120,7 @@ def generate_teachers():
                             'name': random.choice(mname_list) if is_male == 1 else random.choice(fname_list),
                             'surname': random.choice(msurname_list) if is_male == 1 else random.choice(fsurname_list),
                             'sex': 'М' if is_male == 1 else 'Ж',
-                            'subj': sub})
+                            'subj': sub[0]})
 
     keys = result_list[0].keys()
     with open(res_path + 'teachers.csv', 'w', newline='', encoding='utf-8') as output_csv:
@@ -122,19 +128,26 @@ def generate_teachers():
         dict_writer.writeheader()
         dict_writer.writerows(result_list)
 
-def generate_subj():
+def select_all():
+    for i in cbuts:
+        i.select()
+
+def deselect_all():
+    for i in cbuts:
+        i.deselect()
+
+
+def generate_subj(subj_cfg):
     log.info('generating subjects')
-    presubj_list = ['русский язык', 'литература', 'иностранный язык', 'история', 'кубановедение', 'технология', 'химия', 'алгебра', 'геометрия', 'биология', 'география', 'физра', 'информатика', 'физика', 'обществознание', 'исскуство']
     subj_list = []
-    while len(subj_list) < 5:
-        random_subj = random.choice(presubj_list)
-        if random_subj not in subj_list:
-            subj_list.append(random_subj)
+    with open(subj_cfg, 'r', encoding='utf-8') as data:
+        for line in csv.reader(data, delimiter=','):
+            subj_list.append(line)
     with open(res_path + 'subjects.csv', 'w', newline='', encoding='utf-8') as output_csv:
         writer = csv.writer(output_csv, delimiter=',', quoting=csv.QUOTE_MINIMAL)
-        writer.writerow(('subjects',))
+        writer.writerow(('subjects', 'quantity'))
         for row in subj_list:
-            writer.writerow((row,))
+            writer.writerow(row)
     return subj_list
 
 def daterange(start_date, end_date):
@@ -143,7 +156,7 @@ def daterange(start_date, end_date):
         yield start_date + datetime.timedelta(n)
 
 
-def generate_shedule(students, subj, menu_results):
+def generate_shedule(students, menu_results, subj_reg):
     class_list = list(students).pop(1)
     class_num_list = list(students).pop(2)
     class_letter_list = list(students).pop(3)
@@ -153,30 +166,30 @@ def generate_shedule(students, subj, menu_results):
     cursor = connection.cursor()
     cursor.execute('SELECT * FROM calendar')
     print('generating shedule')
-    if menu_results['rates_in_day'] == '2-3':
-        for date in tqdm(cursor.fetchall()):
-            if date[1] <= 4:
+    # if menu_results['rates_in_day'] == '2-3':
+    for date in tqdm(cursor.fetchall()):
+        if date[1] <= 4:
+            for subject in subj_reg[date[1]]:
                 for student in students[0]:
-                    for _ in range(random.randint(2, 3)):
-                        result_list.append({'ID': i,
-                                            'student_id': student["GUID"],
-                                            'date': date[0],
-                                            'subj': random.choice(subj),
-                                            'rate': random.choice([2, 3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5])
-                                            })
-                        i += 1
-    if menu_results['rates_in_day'] == '5':
-        for date in tqdm(cursor.fetchall()):
-            if date[1] <= 4:
-                for student in students[0]:
-                    for _ in range(5):
-                        result_list.append({'ID': i,
-                                            'student_id': student["GUID"],
-                                            'date': date[0],
-                                            'subj': random.choice(subj),
-                                            'rate': random.choice([2, 3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5])
-                                            })
-                        i += 1
+                    result_list.append({'ID': i,
+                                        'student_id': student["GUID"],
+                                        'date': date[0],
+                                        'subj': subject,
+                                        'rate': random.choice([2, 3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5])
+                                        })
+                    i += 1
+    # if menu_results['rates_in_day'] == '5':
+    #     for date in tqdm(cursor.fetchall()):
+    #         if date[1] <= 4:
+    #             for student in students[0]:
+    #                 for _ in range(5):
+    #                     result_list.append({'ID': i,
+    #                                         'student_id': student["GUID"],
+    #                                         'date': date[0],
+    #                                         'subj': random.choice(subj)[0],
+    #                                         'rate': random.choice([2, 3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5])
+    #                                         })
+    #                     i += 1
     keys = result_list[0].keys()
     with open(res_path + 'shedule.csv', 'w', newline='', encoding='utf-8') as output_csv:
         dict_writer = csv.DictWriter(output_csv, keys)
@@ -206,6 +219,13 @@ def generate_calendar():
             cursor.execute("INSERT INTO calendar VALUES (%s, %s, %s)", (single_date, single_date.weekday(), 'Q4'))
             connection.commit()
 
+def create_cbuts():
+    var_list = []
+    for index, item in enumerate(cbuts_text):
+        var_list.append(IntVar())
+        cbuts.append(Checkbutton(window, text=item, variable=var_list[index]))
+        cbuts[index].pack()
+    return var_list
 
 def calculating(shedule, students, subj_list):
     id = 0
@@ -224,7 +244,9 @@ def calculating(shedule, students, subj_list):
                                   'clss': clss,
                                   'rates': rates})
     for student in student_rates_raw:
+        print('-')
         for subj in subj_list:
+            print()
             for dates in [list(daterange(datetime.date(2022, 9, 1), datetime.date(2022, 10, 31))),
                           list(daterange(datetime.date(2022, 11, 1), datetime.date(2022, 12, 31))),
                           list(daterange(datetime.date(2023, 1, 1), datetime.date(2023, 3, 31))),
@@ -232,10 +254,10 @@ def calculating(shedule, students, subj_list):
                 summ = 0
                 count = 0
                 for rate in student['rates']:
-                    if rate[1] == subj and rate[2] in dates:
+                    if rate[1] == subj[0] and rate[2] in dates:
                         summ += rate[0]
                         count += 1
-                quater_list.append(round(summ / count, 0))
+                quater_list.append(int(round(summ / count, 0)))
             preyear_rate = sum(quater_list) / len(quater_list)
             if str(preyear_rate).split('.')[1] == '5':
                 preyear_rate += 0.1
@@ -244,7 +266,7 @@ def calculating(shedule, students, subj_list):
                                   'name': student['name'],
                                   'surname': student['surname'],
                                   'class': student['clss'],
-                                  'subj': subj,
+                                  'subj': subj[0],
                                   'rates_1': quater_list[0],
                                   'rates_2': quater_list[1],
                                   'rates_3': quater_list[2],
@@ -295,9 +317,9 @@ except:
     print('связей итак нет')
 
 
-window = Tk()
-window.title("")
-var = IntVar()
+# window = Tk()
+# window.title("")
+# var = IntVar()
 # datescombo = Combobox(window)
 # # classcombo = Combobox(window)
 # subjcombo = Combobox(window)
@@ -313,38 +335,40 @@ var = IntVar()
 # datescombo.grid(column=0, row=5)
 # subjcombo['values'] = subj_list
 # subjcombo.grid(column=0, row=7)
-ratelabel = Label(window, text='количество оценок в день')
-ratecombo = Combobox(window)
-ratecombo['values'] = ['2-3', '5']
-ratelabel.grid(column=0, row=1)
-ratecombo.grid(column=0, row=2)
-classlbl = Label(window, text="парралели:")
-classlbl.grid(column=0, row=8)
-list_cb = []
-for j in range(6):
-    list_cb.append(IntVar())
-for i in range(6):
-    cb = Checkbutton(window, height=2, variable=list_cb[i], text=6+i)
-    cb.grid(column=0, row=10+i)
-btn = Button(window, text="Ввод", command=vvod)
-btn.grid(column=0, row=22)
-window.geometry('500x1000')
+# ratelabel = Label(window, text='количество оценок в день')
+# ratecombo = Combobox(window)
+# ratecombo['values'] = ['2-3', '5']
+# ratelabel.pack()
+# ratecombo.pack()
+# classlbl = Label(window, text="парралели:")
+# classlbl.pack()
+# list_cb = []
+# cbuts_text = ['6','7','8','9','10','11']
+# cbuts = []
+# var_list = create_cbuts()
+# Button(window, text = 'Все', command = select_all).pack()
+# Button(window, text = 'Никакие', command = deselect_all).pack()
+# btn = Button(window, text="Ввод", command=vvod(var_list))
+# btn.pack()
+# window.geometry('500x1000')
+# window.mainloop()
 
 
 
 
-window.mainloop()
+
 log.info('start generating')
-generate_teachers()
+vvod()
 generate_calendar()
-result = generate_shedule(generate_students(menu_results), generate_subj(), menu_results)
+subj = generate_subj(subj_cfg)
+result = generate_shedule(generate_students(menu_results), menu_results, subj_reg)
 class_list = result[0]
 subj_list = result[1]
 shedule = result[2]
 students = result[3]
+generate_teachers(subj_list)
 class_num_list = result[4]
 class_letter_list = result[5]
-print(class_num_list, class_letter_list)
 log.info('end generating')
 
 cursor.execute('DROP TABLE IF EXISTS classes;')
@@ -368,10 +392,10 @@ csv_file = pd.read_csv(res_path + 'students.csv', delimiter=',', on_bad_lines='s
 csv_file.to_sql("students", engine, if_exists='replace', index=False)
 csv_file = pd.read_csv(res_path + 'teachers.csv', delimiter=',', on_bad_lines='skip')
 csv_file.to_sql("teachers", engine, if_exists='replace', index=False)
-csv_file = pd.read_csv(res_path + 'subjects.csv', delimiter=',', on_bad_lines='skip')
-csv_file.to_sql("subjects", engine, if_exists='replace', index=False)
 csv_file = pd.read_csv(res_path + 'shedule.csv', delimiter=',', on_bad_lines='skip')
 csv_file.to_sql("shedule", engine, if_exists='replace', index=False)
+csv_file = pd.read_csv(res_path + 'subjects.csv', delimiter=',', on_bad_lines='skip')
+csv_file.to_sql("subjects", engine, if_exists='replace', index=False)
 
 log.info('create links')
 cursor.execute(

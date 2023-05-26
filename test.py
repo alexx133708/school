@@ -1,4 +1,22 @@
-import datetime
-single_date = datetime.date(2023, 4, 6)
+from tkinter import *
 
-print(single_date == datetime.date(int('2023-04-06'.split('-')[0]), int('2023-04-06'.split('-')[1]), int('2023-04-06'.split('-')[2])))
+root = Tk()
+
+list_cb = []
+for j in range(10):
+    list_cb.append(IntVar())
+
+def print_list_cb():
+    list_of_cb_values = []
+    for i in range(10):
+        list_of_cb_values.append(list_cb[i].get())
+    print(list_of_cb_values)
+
+for i in range(10):
+    cb = Checkbutton(root, height=2, variable=list_cb[i])
+    cb.pack()
+
+btn = Button(root, text='print', command=print_list_cb)
+btn.pack()
+
+root.mainloop()
