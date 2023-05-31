@@ -13,10 +13,10 @@ from tkinter import *
 from tkinter.ttk import Combobox
 from subj_reg import subj_reg
 
-res_path = 'E:\\bigdata\\school\\csvfiles\\'
-orig_path = 'E:\\bigdata\\school\\csvfiles_orig\\'
-engine = create_engine(url=f"mysql+pymysql://alex3@192.168.1.75/school", echo=False)
-subj_cfg = 'C:\\Users\\alex\\PycharmProjects\\school\\subj_cfg.csv'
+res_path = 'C:\\bigdata\\school\\csvfiles\\'
+orig_path = 'C:\\bigdata\\school\\csvfiles_orig\\'
+engine = create_engine(url=f"mysql+pymysql://alex2:0209@192.168.1.75/school", echo=False)
+subj_cfg = 'C:\\Users\\alexk\\PycharmProjects\\school\\subj_cfg.csv'
 connection = engine.raw_connection()
 
 logfile = f'{res_path}process.log'
@@ -175,7 +175,7 @@ def generate_shedule(students, menu_results, subj_reg):
                                         'student_id': student["GUID"],
                                         'date': date[0],
                                         'subj': subject,
-                                        'rate': random.choice([2, 3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5])
+                                        'rate': random.choice([2, 2, 2, 3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5])
                                         })
                     i += 1
     # if menu_results['rates_in_day'] == '5':
