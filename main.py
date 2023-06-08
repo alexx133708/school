@@ -17,8 +17,7 @@ from subj_reg import subj_reg
 
 res_path = 'C:\\bigdata\\school\\csvfiles\\'
 orig_path = 'C:\\bigdata\\school\\csvfiles_orig\\'
-connection = psycopg2.connect(dbname='school', user='alex2',
-                        password='0209', host='192.168.1.75')
+connection = psycopg2.connect(dbname='school', user='alex2', password='0209', host='192.168.1.75')
 connection.autocommit = True
 subj_cfg = 'C:\\Users\\alexk\\PycharmProjects\\school\\subj_cfg.csv'
 
