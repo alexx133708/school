@@ -1,6 +1,7 @@
 import csv
 import random
 import datetime
+import time
 import tkinter
 import uuid
 import pandas as pd
@@ -8,6 +9,7 @@ from sqlalchemy import create_engine
 from tqdm import tqdm
 import logging
 import pymysql
+import psycopg2
 import json
 from tkinter import *
 from tkinter.ttk import Combobox
@@ -15,9 +17,10 @@ from subj_reg import subj_reg
 
 res_path = 'C:\\bigdata\\school\\csvfiles\\'
 orig_path = 'C:\\bigdata\\school\\csvfiles_orig\\'
-engine = create_engine(url=f"mysql+pymysql://alex2:0209@192.168.1.75/school", echo=False)
+connection = psycopg2.connect(dbname='school', user='alex2',
+                        password='0209', host='192.168.1.75')
+connection.autocommit = True
 subj_cfg = 'C:\\Users\\alexk\\PycharmProjects\\school\\subj_cfg.csv'
-connection = engine.raw_connection()
 
 logfile = f'{res_path}process.log'
 log = logging.getLogger("my_log")
@@ -45,7 +48,68 @@ def vvod():
         list_of_cb_values.append(i+6)
     menu_results = {'class_nums': list_of_cb_values}
 
-def generate_students(menu_results):
+
+# Establish a connection to the PostgreSQL database
+
+# Define the path to the CSV file and the name of the table to load it into
+csv_file_path = "./data.csv"
+table_name = "temp_table"
+
+
+def load_csv_with_insert(table_name, csv_file_path):
+    i = 0
+    if table_name == 'shedule':
+        cur = connection.cursor()
+        with open(csv_file_path, 'r', encoding='utf-8') as f:
+            csv_reader = csv.reader(f)
+            next(csv_reader)
+            insert_query = f"INSERT INTO {table_name} VALUES ({','.join(['%s'] * len(next(csv_reader)))})"
+            for row in tqdm(csv_reader):
+                cur.execute(insert_query, row)
+            connection.commit()
+        cur.close()
+    if table_name == 'students':
+        cur = connection.cursor()
+        with open(csv_file_path, 'r', encoding='utf-8') as f:
+            csv_reader = csv.reader(f)
+            next(csv_reader)
+            insert_query = f"INSERT INTO {table_name} VALUES ({','.join(['%s'] * len(next(csv_reader)))})"
+            for row in tqdm(csv_reader):
+                cur.execute(insert_query, [row[0], row[1], row[2], row[3], row[4], row[5]])
+            connection.commit()
+        cur.close()
+    if table_name == 'teachers':
+        cur = connection.cursor()
+        with open(csv_file_path, 'r', encoding='utf-8') as f:
+            csv_reader = csv.reader(f)
+            next(csv_reader)
+            insert_query = f"INSERT INTO {table_name} VALUES ({','.join(['%s'] * len(next(csv_reader)))})"
+            for row in tqdm(csv_reader):
+                cur.execute(insert_query, [row[0], row[1], row[2], row[3], row[4]])
+            connection.commit()
+        cur.close()
+    if table_name == 'subjects':
+        cur = connection.cursor()
+        with open(csv_file_path, 'r', encoding='utf-8') as f:
+            csv_reader = csv.reader(f)
+            next(csv_reader)
+            insert_query = f"INSERT INTO {table_name} VALUES ({','.join(['%s'] * len(next(csv_reader)))})"
+            for row in tqdm(csv_reader):
+                cur.execute(insert_query, [row[0], row[1]])
+            connection.commit()
+        cur.close()
+    if table_name == 'rates':
+        cur = connection.cursor()
+        with open(csv_file_path, 'r', encoding='utf-8') as f:
+            csv_reader = csv.reader(f)
+            insert_query = f"INSERT INTO {table_name} VALUES ({','.join(['%s'] * len(next(csv_reader)))})"
+            for row in tqdm(f.readlines()):
+                row = row.split(',')
+                cur.execute(insert_query, [row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10]])
+            connection.commit()
+        cur.close()
+
+def generate_students():
     log.info('generating students')
     mname_list = []
     fname_list = []
@@ -60,13 +124,13 @@ def generate_students(menu_results):
     fsurname_list = []
     with open('fsurnames.txt', 'r', encoding='utf-8') as surnames:
         for row in surnames.readlines():
-            fsurname_list.append(row.split(' ')[1])
+            fsurname_list.append(row.split(' ')[1].replace('\n', ''))
     with open('msurnames.txt', 'r', encoding='utf-8') as surnames:
         for row in surnames.readlines():
-            msurname_list.append(row.split(' ')[1])
+            msurname_list.append(row.split(' ')[1].replace('\n', ''))
 
     class_letter_list = ['A', 'Б', 'В', 'Г', 'Д']
-    class_num_list = menu_results['class_nums']
+    class_num_list = range(6, 11)
     class_list = []
     print('generating classes')
     for num in class_num_list:
@@ -156,7 +220,7 @@ def daterange(start_date, end_date):
         yield start_date + datetime.timedelta(n)
 
 
-def generate_shedule(students, menu_results, subj_reg):
+def generate_shedule(students, subj_reg):
     class_list = list(students).pop(1)
     class_num_list = list(students).pop(2)
     class_letter_list = list(students).pop(3)
@@ -201,7 +265,8 @@ def generate_shedule(students, menu_results, subj_reg):
 def generate_calendar():
     log.info('generating calendar')
     cursor = connection.cursor()
-    cursor.execute("DROP TABLE IF EXISTS calendar")
+    connection.autocommit = True
+    cursor.execute("DROP TABLE IF EXISTS calendar CASCADE ")
     cursor.execute("CREATE TABLE calendar"
                    "(date date, weekday smallint, quater varchar(2))")
     print('generating calendar')
@@ -233,10 +298,10 @@ def calculating(shedule, students, subj_list):
     student_rates = []
     quater_list = []
     cursor = connection.cursor()
-    cursor.execute('SELECT `GUID`, `name`, `surname`, clss FROM students')
+    cursor.execute('SELECT GUID, name, surname, clss FROM students')
     students_guid = cursor.fetchall()
     for student_guid, name, surname, clss in students_guid:
-        cursor.execute(f'SELECT `rate`, `subj`, `date` FROM shedule WHERE `student_id` = "{student_guid}"')
+        cursor.execute(f"SELECT rate, subj, date FROM shedule WHERE student_id = '{student_guid}'")
         rates = cursor.fetchall()
         student_rates_raw.append({'GUID': student_guid,
                                   'name': name,
@@ -356,12 +421,55 @@ except:
 
 
 
+cursor.execute('DROP TABLE IF EXISTS classes;')
+cursor.execute('DROP TABLE IF EXISTS class_letters;')
+cursor.execute('DROP TABLE IF EXISTS class_nums;')
+cursor.execute('DROP TABLE IF EXISTS rates;')
+cursor.execute('DROP TABLE IF EXISTS shedule;')
+cursor.execute('DROP TABLE IF EXISTS students;')
+cursor.execute('DROP TABLE IF EXISTS subjects;')
+cursor.execute('DROP TABLE IF EXISTS teachers;')
 
 log.info('start generating')
-vvod()
+
 generate_calendar()
+cursor.execute('CREATE TABLE rates (ID bigint,'
+                                   'GUID text,'
+                                   'name text,'
+                                   'surname text,'
+                                   'calss text,'
+                                   'subj text,'
+                                   'rates_1 bigint,'
+                                   'rates_2 bigint,'
+                                   'rates_3 bigint,'
+                                   'rates_4 bigint,'
+                                   'year_rates bigint);')
+
+cursor.execute('CREATE TABLE shedule (ID bigint,'
+                                     'student_id varchar(100),'
+                                     'date date,'
+                                     'subj text,'
+                                     'rate bigint)')
+
+cursor.execute('CREATE TABLE students (GUID varchar(100),'
+                                      'name text,'
+                                      'surname text,'
+                                      'sex text,'
+                                      'age bigint,'
+                                      'clss text)')
+
+cursor.execute('CREATE TABLE subjects (subjects text,'
+               '                      quantity bigint)')
+
+cursor.execute('CREATE TABLE teachers (GUID text, '
+                                      'name text,'
+                                      'surname text,'
+                                      'sex text,'
+                                      'subj text)')
+
+# vvod()
 subj = generate_subj(subj_cfg)
-result = generate_shedule(generate_students(menu_results), menu_results, subj_reg)
+result = generate_shedule(generate_students(), subj_reg)
 class_list = result[0]
 subj_list = result[1]
 shedule = result[2]
@@ -371,51 +479,44 @@ class_num_list = result[4]
 class_letter_list = result[5]
 log.info('end generating')
 
-cursor.execute('DROP TABLE IF EXISTS classes;')
 cursor.execute('CREATE TABLE classes (class text);')
 for clss in class_list:
-    cursor.execute(f'INSERT INTO classes (class) VALUES ("{clss}")')
+    cursor.execute(f"INSERT INTO classes VALUES ('{clss}')")
 
 cursor.execute('DROP TABLE IF EXISTS class_nums;')
 cursor.execute('CREATE TABLE class_nums (num smallint);')
 for num in class_num_list:
-    cursor.execute(f'INSERT INTO class_nums (num) VALUES ({num})')
+    cursor.execute(f'INSERT INTO class_nums VALUES ({num})')
 
 cursor.execute('DROP TABLE IF EXISTS class_letters;')
 cursor.execute('CREATE TABLE class_letters (letter text);')
 for letter in class_letter_list:
-    cursor.execute(f'INSERT INTO class_letters (letter) VALUES ("{letter}")')
+    cursor.execute(f"INSERT INTO class_letters VALUES ('{letter}')")
 
-
-log.info('push on mysql')
-csv_file = pd.read_csv(res_path + 'students.csv', delimiter=',', on_bad_lines='skip')
-csv_file.to_sql("students", engine, if_exists='replace', index=False)
-csv_file = pd.read_csv(res_path + 'teachers.csv', delimiter=',', on_bad_lines='skip')
-csv_file.to_sql("teachers", engine, if_exists='replace', index=False)
-csv_file = pd.read_csv(res_path + 'shedule.csv', delimiter=',', on_bad_lines='skip')
-csv_file.to_sql("shedule", engine, if_exists='replace', index=False)
-csv_file = pd.read_csv(res_path + 'subjects.csv', delimiter=',', on_bad_lines='skip')
-csv_file.to_sql("subjects", engine, if_exists='replace', index=False)
-
+log.info('push on postgresql')
+load_csv_with_insert('students', res_path + 'students.csv')
+print('-')
+load_csv_with_insert('teachers', res_path + 'teachers.csv')
+print('-')
+load_csv_with_insert('subjects', res_path + 'subjects.csv')
+connection.commit()
+print('-')
+load_csv_with_insert('shedule', res_path + 'shedule.csv')
 log.info('create links')
-cursor.execute(
-    'ALTER TABLE `students` CHANGE `GUID` `GUID` VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL;')
-cursor.execute(
-    'ALTER TABLE `shedule` CHANGE `student_id` `student_id` VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL;')
-cursor.execute('ALTER TABLE `students` ADD PRIMARY KEY( `GUID`);')
-cursor.execute('ALTER TABLE `calendar` ADD PRIMARY KEY( `date`);')
-cursor.execute('ALTER TABLE `shedule` ADD PRIMARY KEY( `ID`);')
-cursor.execute('ALTER TABLE `shedule` CHANGE `date` `date` DATE NULL DEFAULT NULL;')
-cursor.execute(
-    'ALTER TABLE `shedule` ADD FOREIGN KEY (`student_id`) REFERENCES `students`(`GUID`) ON DELETE RESTRICT ON UPDATE RESTRICT;')
-cursor.execute(
-    'ALTER TABLE `shedule` ADD FOREIGN KEY (`date`) REFERENCES `calendar`(`date`) ON DELETE RESTRICT ON UPDATE RESTRICT;')
+cursor.execute('ALTER TABLE students ADD CONSTRAINT PK_school_students_GUID PRIMARY KEY (GUID);')
+print('-')
+cursor.execute('ALTER TABLE calendar ADD CONSTRAINT PK_school_calendar_date PRIMARY KEY (date);')
+print('-')
+cursor.execute('ALTER TABLE shedule ADD CONSTRAINT PK_school_shedule_ID PRIMARY KEY (ID);')
+print('-')
+print('-')
+cursor.execute('ALTER TABLE shedule ADD CONSTRAINT FK_school_shedule_date FOREIGN KEY (date) REFERENCES calendar (date)')
+print('-')
 connection.commit()
 
 calculating(shedule, students, subj_list)
-csv_file = pd.read_csv(res_path + 'rates.csv', delimiter=',', on_bad_lines='skip')
-csv_file.to_sql("rates", engine, if_exists='replace', index=False)
-cursor.execute('ALTER TABLE `rates` ADD PRIMARY KEY( `ID`);')
+load_csv_with_insert('rates', res_path + 'rates.csv')
+cursor.execute('ALTER TABLE rates ADD CONSTRAINT PK_school_rates_ID PRIMARY KEY (ID);')
 # query(cursor, menu_results)
 log.info('end program')
 
