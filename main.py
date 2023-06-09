@@ -55,6 +55,25 @@ csv_file_path = "./data.csv"
 table_name = "temp_table"
 
 
+def insert(table, lst):
+    myList = listNestedDictForTblInsert(lst)
+    print(myList)
+
+    mySqlStr = f'INSERT INTO {table}(ID, Price, Type) VALUES(%s,%s,%s)'
+    val = myList
+    print(mySqlStr)
+    print(val)
+    try:
+        myCursor = myDb.cursor()
+        myCursor.executemany(mySqlStr, val)
+        myDb.commit()
+        messagebox.showinfo("show info", "Data is saved successfully")
+    except Error as e:
+        messagebox.showinfo("show info", "Data is not saved")
+
+    myDb.close()
+    myCursor.close()
+
 def load_csv_with_insert(table_name, csv_file_path):
     i = 0
     if table_name == 'shedule':
